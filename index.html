@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sats Master ATM</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@700&family=Orbitron:wght@900&display=swap');
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-tap-highlight-color: transparent; }
+        body { background: #000; height: 100vh; font-family: 'JetBrains Mono', monospace; color: white; overflow: hidden; }
+        .viewport { width: 100%; height: 100%; transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1); display: flex; }
+        .scene { min-width: 100%; height: 100%; display: flex; flex-direction: column; padding: 15px; position: relative; }
+        
+        /* ATM & Ekran */
+        .atm-frame { flex: 1; background: #1a1a1c; border: 6px solid #333; border-radius: 24px; display: flex; flex-direction: column; padding: 15px; box-shadow: inset 0 0 30px #000; border-bottom: 12px solid #222; }
+        .atm-screen { background: #000c14; border: 2px solid #0ea5e9; border-radius: 12px; height: 110px; display: flex; flex-direction: column; justify-content: center; align-items: center; margin-bottom: 15px; }
+        .key-btn { height: 46px; background: linear-gradient(180deg, #444, #222); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; border-bottom: 4px solid #000; cursor: pointer; }
+        .key-btn:active { transform: translateY(2px); border-bottom: 0; background: #0ea5e9; }
+
+        /* Telefon Arayüzü */
+        .phone-frame { flex: 1; background: #3a3a3c; border: 5px solid #8e8e93; border-radius: 50px; position: relative; display: flex; flex-direction: column; overflow: hidden; }
+        .phone-display { flex: 1; background: #000; margin: 8px; border-radius: 42px; overflow: hidden; display: flex; flex-direction: column; position: relative; }
+        .ad-box { width: 100%; height: 55px; background: #0a0a0a; border-radius: 10px; margin-bottom: 6px; border: 1px solid #222; overflow: hidden; }
+
+        /* Panel & Overlay */
+        #panel { position: fixed; bottom: -110%; left: 0; width: 100%; height: 85%; background: #111; border-radius: 30px 30px 0 0; z-index: 5000; transition: bottom 0.4s ease; border-top: 1px solid #333; padding: 20px; overflow-y: auto; }
+        .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); display: none; z-index: 4000; backdrop-filter: blur(8px); }
+        #intro-overlay { position: fixed; inset: 0; background: #000; z-index: 9999; display: flex; flex-direction: column; justify-content: center; padding: 40px; text-align: center; }
+        
+        .lang-btn { opacity: 0.5; transition: 0.3s; }
+        .lang-active { opacity: 1; border-color: #0ea5e9; transform: scale(1.1); }
+    </style>
+</head>
+<body>
+
+    <div id="intro-overlay">
+        <h2 id="intro-title" class="text-3xl font-black text-sky-400 mb-6 uppercase">HOŞ GELDİN!</h2>
+        <p id="intro-desc" class="text-sm opacity-70 leading-relaxed mb-12">Sats Master ATM ile Bitcoin dünyasına girmeye hazırsın.</p>
+        <div class="flex justify-between items-center px-4">
+            <span id="intro-step-text" class="text-[10px] font-bold opacity-30 tracking-widest uppercase">Adım 1 / 5</span>
+            <button onclick="nextStep()" class="bg-white text-black px-10 py-4 rounded-full font-black text-xs uppercase">İLERLE</button>
+        </div>
+    </div>
+
+    <div class="viewport" id="viewport">
+        <div class="scene" id="scene-atm">
+            <div class="flex justify-between mb-4 items-center">
+                <div class="flex gap-2">
+                    <button onclick="changeLang('tr')" id="l-tr" class="lang-btn lang-active border border-white/20 rounded px-1">🇹🇷</button>
+                    <button onclick="changeLang('en')" id="l-en" class="lang-btn border border-white/20 rounded px-1">🇺🇸</button>
+                </div>
+                <div class="flex gap-2">
+                    <div class="bg-zinc-900 px-4 py-2 rounded-2xl border border-yellow-600/30 text-yellow-500 font-bold text-xs">
+                        <i class="fas fa-coins mr-1"></i> <span id="gold-bal">0</span>
+                    </div>
+                    <div class="bg-zinc-900 px-4 py-2 rounded-2xl border border-sky-600/30 text-sky-400 font-bold text-xs">
+                        <i class="fab fa-bitcoin mr-1"></i> <span id="sats-bal">0.0</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="atm-frame">
+                <div class="flex bg-black p-1 rounded-xl mb-4">
+                    <button id="btn-bozdur" onclick="setMode('bozdur')" class="flex-1 py-2 text-[10px] font-black rounded-lg bg-sky-500 text-black t-bozdur">BOZDUR</button>
+                    <button id="btn-cek" onclick="setMode('cek')" class="flex-1 py-2 text-[10px] font-black rounded-lg text-white t-cekim">ÇEKİM</button>
+                </div>
+                <div class="atm-screen">
+                    <div id="atm-val" class="text-5xl font-black font-['Orbitron']">0</div>
+                    <div id="limit-hint" class="text-[8px] opacity-30 mt-2 uppercase t-min-limit">Min: 1000 Gold</div>
+                </div>
+                <div class="grid grid-cols-3 gap-2 px-2">
+                    <div class="key-btn" onclick="tap(1)">1</div><div class="key-btn" onclick="tap(2)">2</div><div class="key-btn" onclick="tap(3)">3</div>
+                    <div class="key-btn" onclick="tap(4)">4</div><div class="key-btn" onclick="tap(5)">5</div><div class="key-btn" onclick="tap(6)">6</div>
+                    <div class="key-btn" onclick="tap(7)">7</div><div class="key-btn" onclick="tap(8)">8</div><div class="key-btn" onclick="tap(9)">9</div>
+                    <div class="key-btn text-red-500" onclick="clearVal()"><i class="fas fa-undo"></i></div>
+                    <div class="key-btn" onclick="tap(0)">0</div>
+                    <div class="key-btn text-green-500" onclick="initProcess()"><i class="fas fa-check"></i></div>
+                </div>
+                <div class="flex justify-between mt-auto pt-4 border-t border-white/5 text-[10px] font-black text-white/40">
+                    <div class="flex gap-4">
+                        <span onclick="openPanel('ref')" class="cursor-pointer t-ref">REFERANS</span>
+                        <span onclick="openPanel('stats')" class="cursor-pointer t-profil">PROFİL</span>
+                        <span id="admin-btn" onclick="openPanel('admin')" class="hidden text-red-600"><i class="fas fa-shield-alt"></i> ADMİN</span>
+                    </div>
+                    <i onclick="goToScene(1)" class="fas fa-mobile-screen text-xl text-sky-500 cursor-pointer"></i>
+                </div>
+            </div>
+        </div>
+
+        <div class="scene" id="scene-farm">
+            <div class="phone-frame">
+                <div class="phone-display px-4">
+                    <div class="w-20 h-6 bg-black mx-auto mt-2 rounded-full mb-4"></div>
+                    
+                    <div class="flex gap-2 mb-4">
+                        <div class="flex-1 bg-white/5 p-3 rounded-2xl border border-white/10">
+                            <p class="text-[7px] opacity-40 uppercase font-black t-aktif-sure">Aktif Süre</p>
+                            <p id="stat-time" class="text-xs font-bold text-sky-400">00:00:00</p>
+                        </div>
+                        <div class="flex-1 bg-white/5 p-3 rounded-2xl border border-white/10 text-right">
+                            <p class="text-[7px] opacity-40 uppercase font-black t-seans-kazanci">Seans Kazancı</p>
+                            <p id="stat-gain" class="text-xs font-bold text-yellow-500">0 G</p>
+                        </div>
+                    </div>
+
+                    <div class="ad-box"><iframe src='https://acceptable.a-ads.com/2424459/?size=Adaptive' style='border:0;width:100%;height:100%;'></iframe></div>
+                    <div class="ad-box"><iframe src='https://acceptable.a-ads.com/2424459/?size=Adaptive' style='border:0;width:100%;height:100%;'></iframe></div>
+                    <div class="ad-box"><iframe src='https://acceptable.a-ads.com/2424459/?size=Adaptive' style='border:0;width:100%;height:100%;'></iframe></div>
+                    <div class="ad-box"><iframe src='https://acceptable.a-ads.com/2424459/?size=Adaptive' style='border:0;width:100%;height:100%;'></iframe></div>
+
+                    <div class="mt-auto bg-zinc-900/90 p-5 rounded-3xl border border-white/10 mb-4">
+                        <h4 id="timer-text" class="text-3xl font-black text-center mb-1">02:30</h4>
+                        <div class="w-full h-1 bg-white/5 rounded-full overflow-hidden mb-4">
+                            <div id="p-fill" class="h-full bg-sky-500 w-0 transition-all duration-1000"></div>
+                        </div>
+                        <button onclick="goToScene(0)" class="w-full py-4 bg-white text-black rounded-2xl font-black text-xs uppercase t-terminal-don">TERMİNALE DÖN</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="overlay" id="overlay" onclick="closePanel()"></div>
+    <div id="panel">
+        <div class="w-12 h-1 bg-white/20 mx-auto mb-6 rounded-full"></div>
+        <div id="panel-content"></div>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        const ADMIN_ID = 7904032877;
+        const API_URL = "https://satsatm.onrender.com/api";
+        const sndClick = new Audio('https://www.soundjay.com/buttons/button-16.mp3');
+        const sndType = new Audio('https://www.soundjay.com/communication/typewriter-key-1.mp3'); // Yazı sesi
+        
+        let userData = { gold: 0, sats: 0, refs: [], withdrawals: [] };
+        let currentMode = "bozdur";
+        let val = "0";
+        let activeSec = 0, sessionGain = 0;
+        let farmInt, statInt;
+        let currentLang = 'tr';
+
+        const langs = {
+            tr: {
+                welcome: "HOŞ GELDİN!",
+                intro1: "ATM ekranından Gold bozdurabilir veya Satoshi çekebilirsin.",
+                introNext: "İLERLE",
+                bozdur: "BOZDUR",
+                cekim: "ÇEKİM",
+                minGold: "Min: 1000 Gold",
+                minSats: "Min: 5 Sats",
+                ref: "REFERANS",
+                profil: "PROFİL",
+                aktifSure: "Aktif Süre",
+                seansKazanci: "Seans Kazancı",
+                terminalDon: "TERMİNALE DÖN",
+                kopyala: "KOPYALA",
+                paylas: "PAYLAŞ",
+                onayla: "ONAYLA"
+            },
+            en: {
+                welcome: "WELCOME!",
+                intro1: "You can exchange Gold or withdraw Satoshi from ATM screen.",
+                introNext: "NEXT",
+                bozdur: "EXCHANGE",
+                cekim: "WITHDRAW",
+                minGold: "Min: 1000 Gold",
+                minSats: "Min: 5 Sats",
+                ref: "REFERRAL",
+                profil: "PROFILE",
+                aktifSure: "Active Time",
+                seansKazanci: "Session Gain",
+                terminalDon: "BACK TO TERMINAL",
+                kopyala: "COPY",
+                paylas: "SHARE",
+                onayla: "CONFIRM"
+            }
+        };
+
+        function changeLang(l) {
+            currentLang = l;
+            document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('lang-active'));
+            document.getElementById('l-'+l).classList.add('lang-active');
+            
+            // Metinleri Güncelle
+            document.querySelector('.t-bozdur').innerText = langs[l].bozdur;
+            document.querySelector('.t-cekim').innerText = langs[l].cekim;
+            document.querySelector('.t-ref').innerText = langs[l].ref;
+            document.querySelector('.t-profil').innerText = langs[l].profil;
+            document.querySelector('.t-aktif-sure').innerText = langs[l].aktifSure;
+            document.querySelector('.t-seans-kazanci').innerText = langs[l].seansKazanci;
+            document.querySelector('.t-terminal-don').innerText = langs[l].terminalDon;
+            setMode(currentMode); // Limit hint güncellemesi için
+        }
+
+        // Rehber Adımları
+        let step = 1;
+        const info = [
+            { t: "welcome", d: "intro1" },
+            { t: "MINING YAP", d: "Telefon ikonuna tıkla, sayaç bittiğinde 250 Gold kazan." },
+            { t: "BOZDURMA", d: "Kazandığın Gold'ları Satoshi'ye çevirerek Bitcoin biriktir." },
+            { t: "REFERANS", d: "Arkadaşlarını davet et, %10 kazanç bonusu yakala!" },
+            { t: "BAŞLAYALIM", d: "Her şey hazır! Bol şanslar dileriz." }
+        ];
+
+        function nextStep() {
+            if(step < 5) {
+                step++;
+                const titleKey = info[step-1].t;
+                const descKey = info[step-1].d;
+                document.getElementById('intro-title').innerText = langs[currentLang][titleKey] || titleKey;
+                document.getElementById('intro-desc').innerText = langs[currentLang][descKey] || descKey;
+                document.getElementById('intro-step-text').innerText = (currentLang === 'tr' ? 'Adım ' : 'Step ') + step + " / 5";
+            } else {
+                document.getElementById('intro-overlay').style.display = 'none';
+                localStorage.setItem('intro_done', 'true');
+            }
+        }
+
+        async function init() {
+            tg.expand();
+            const u = tg.initDataUnsafe.user || { id: ADMIN_ID };
+            if(u.id == ADMIN_ID) document.getElementById('admin-btn').classList.remove('hidden');
+            if(localStorage.getItem('intro_done')) document.getElementById('intro-overlay').style.display = 'none';
+            await syncData();
+        }
+
+        async function syncData() {
+            const uid = tg.initDataUnsafe.user?.id || ADMIN_ID;
+            try {
+                const res = await fetch(`${API_URL}/sync`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ userId: uid })
+                });
+                userData = await res.json();
+                updateUI();
+            } catch(e) {}
+        }
+
+        function updateUI() {
+            document.getElementById('gold-bal').innerText = Math.floor(userData.gold).toLocaleString();
+            document.getElementById('sats-bal').innerText = Number(userData.sats).toFixed(1);
+        }
+
+        function tap(n) { 
+            sndType.currentTime = 0; 
+            sndType.play(); 
+            if(val === "0") val = ""; 
+            if(val.length < 8) val += n; 
+            document.getElementById('atm-val').innerText = val; 
+        }
+
+        function clearVal() { sndClick.play(); val = "0"; document.getElementById('atm-val').innerText = "0"; }
+        
+        function setMode(m) {
+            currentMode = m;
+            document.getElementById('btn-bozdur').className = m === 'bozdur' ? 'flex-1 py-2 text-[10px] font-black rounded-lg bg-sky-500 text-black t-bozdur' : 'flex-1 py-2 text-[10px] font-black rounded-lg text-white t-bozdur';
+            document.getElementById('btn-cek').className = m === 'cek' ? 'flex-1 py-2 text-[10px] font-black rounded-lg bg-sky-500 text-black t-cekim' : 'flex-1 py-2 text-[10px] font-black rounded-lg text-white t-cekim';
+            document.getElementById('limit-hint').innerText = m === 'bozdur' ? langs[currentLang].minGold : langs[currentLang].minSats;
+            clearVal();
+        }
+
+        function goToScene(idx) {
+            document.getElementById('viewport').style.transform = `translateX(-${idx * 100}%)`;
+            idx === 1 ? startFarm() : stopFarm();
+        }
+
+        function startFarm() {
+            let t = 150;
+            statInt = setInterval(() => {
+                activeSec++;
+                let h = Math.floor(activeSec/3600).toString().padStart(2,'0');
+                let m = Math.floor((activeSec%3600)/60).toString().padStart(2,'0');
+                let s = (activeSec%60).toString().padStart(2,'0');
+                document.getElementById('stat-time').innerText = `${h}:${m}:${s}`;
+            }, 1000);
+
+            farmInt = setInterval(async () => {
+                t--;
+                document.getElementById('timer-text').innerText = `${Math.floor(t/60)}:${(t%60).toString().padStart(2,'0')}`;
+                document.getElementById('p-fill').style.width = `${((150-t)/150)*100}%`;
+                if(t <= 0) {
+                    sessionGain += 250;
+                    document.getElementById('stat-gain').innerText = sessionGain + " G";
+                    t = 150;
+                    await fetch(`${API_URL}/farm`, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ userId: tg.initDataUnsafe.user?.id || ADMIN_ID, reward: 250 })
+                    });
+                    syncData();
+                }
+            }, 1000);
+        }
+
+        function stopFarm() { clearInterval(farmInt); clearInterval(statInt); }
+
+        function openPanel(type) {
+            const c = document.getElementById('panel-content');
+            const uid = tg.initDataUnsafe.user?.id || ADMIN_ID;
+            const l = langs[currentLang];
+
+            if(type === 'ref') {
+                c.innerHTML = `
+                    <h2 class="text-xl font-black mb-6 text-sky-400">${l.ref}</h2>
+                    <div class="bg-zinc-900 p-6 rounded-2xl border border-white/5 mb-6 text-center">
+                        <p class="text-[9px] opacity-40 mb-2 uppercase font-black">Referans Numaran</p>
+                        <p class="text-2xl font-black mb-4">${uid}</p>
+                        <div class="flex gap-2">
+                            <button onclick="copyLink('${uid}')" class="flex-1 py-3 bg-white text-black rounded-xl font-black text-xs uppercase">${l.kopyala}</button>
+                            <button onclick="shareLink('${uid}')" class="flex-1 py-3 bg-sky-600 text-white rounded-xl font-black text-xs uppercase">${l.paylas}</button>
+                        </div>
+                    </div>
+                    <div class="bg-zinc-900 p-6 rounded-2xl border border-white/5 mb-6">
+                        <p class="text-[9px] opacity-40 mb-2 uppercase font-black">Kod Gir</p>
+                        <input id="ref-in" class="w-full bg-black border border-white/10 rounded-xl p-3 text-sm mb-2 outline-none">
+                        <button onclick="tg.showAlert('Ok!')" class="w-full py-3 bg-sky-500 text-black rounded-xl font-black text-xs uppercase">${l.onayla}</button>
+                    </div>
+                    <p class="text-[10px] font-black opacity-30 mb-3 uppercase">Referans Geçmişi (${userData.refs?.length || 0})</p>
+                    <div class="max-h-32 overflow-y-auto space-y-2">
+                        ${userData.refs?.length ? userData.refs.map(r => `<div class="p-3 bg-white/5 rounded-xl text-xs border border-white/5 text-sky-400">👤 ID: ${r}</div>`).join('') : '<p class="opacity-20 text-xs text-center py-4">Kimse yok.</p>'}
+                    </div>
+                `;
+            } else if(type === 'admin') {
+                c.innerHTML = `<h2 class="text-xl font-black mb-6 text-red-500 uppercase">YÖNETİM</h2><div id="adm-list" class="space-y-3">Veriler kontrol ediliyor...</div>`;
+                fetchAdmin();
+            } else if(type === 'stats') {
+                c.innerHTML = `
+                    <h2 class="text-xl font-black mb-6 text-sky-400">${l.profil}</h2>
+                    <div class="grid grid-cols-2 gap-4 mb-8">
+                        <div class="bg-zinc-900 p-4 rounded-xl border border-white/5"><p class="text-[8px] opacity-40 uppercase">Gold</p><p class="font-bold">${userData.gold}</p></div>
+                        <div class="bg-zinc-900 p-4 rounded-xl border border-white/5"><p class="text-[8px] opacity-40 uppercase">Sats</p><p class="font-bold">${userData.sats}</p></div>
+                    </div>
+                    <p class="text-[10px] font-black opacity-30 mb-3 uppercase">ÇEKİM TALEPLERİN</p>
+                    <div class="space-y-2">
+                        ${userData.withdrawals?.length ? userData.withdrawals.map(w => `<div class="p-3 bg-white/5 rounded-xl flex justify-between text-xs"><span>${w.amount} SATS</span><span class="text-yellow-500">${w.status}</span></div>`).join('') : '<p class="opacity-20 text-xs text-center py-4">Talep yok.</p>'}
+                    </div>
+                `;
+            }
+            document.getElementById('panel').style.bottom = "0";
+            document.getElementById('overlay').style.display = "block";
+        }
+
+        async function fetchAdmin() {
+            try {
+                const res = await fetch(`${API_URL}/admin/withdrawals`);
+                const list = await res.json();
+                document.getElementById('adm-list').innerHTML = list.length ? list.map(w => `<div class="bg-zinc-900 p-4 rounded-xl border border-white/5 flex justify-between items-center"><div><p class="text-[9px]">ID: ${w.userId}</p><p class="text-sm font-black text-sky-400">${w.amount} SATS</p></div><button class="bg-green-600 px-3 py-1 rounded font-bold text-[10px]">ONAYLA</button></div>`).join('') : '<p class="opacity-20 text-center py-6">TALEP YOK</p>';
+            } catch(e) { document.getElementById('adm-list').innerHTML = "Hata oluştu."; }
+        }
+
+        function copyLink(id) { navigator.clipboard.writeText(id); tg.showAlert("Kopyalandı!"); }
+        function shareLink(id) { tg.openTelegramLink(`https://t.me/share/url?url=https://t.me/SatsATMBot?start=${id}`); }
+        function closePanel() { document.getElementById('panel').style.bottom = "-110%"; document.getElementById('overlay').style.display = "none"; }
+        
+        async function initProcess() {
+            const amt = parseInt(val);
+            if(amt <= 0) return;
+            tg.showAlert(currentLang === 'tr' ? "İşlem kuyruğa alındı!" : "Transaction queued!");
+            clearVal();
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
